@@ -12,7 +12,7 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ---------- CONFIG ----------
-PROOF_CHANNEL_ID = 1458565775701971186
+PROOF_CHANNEL_ID = 1467104586329362677
 LOG_CHANNEL_ID = 1458565222926123109
 ROLE_ID = 1458568198214516991  # <-- HIER DEINE ROLLEN-ID
 REQUIRED = 7
@@ -99,3 +99,4 @@ async def on_message(message):
 
 # ---------- START ----------
 bot.run(os.environ["DISCORD_TOKEN"])
+
