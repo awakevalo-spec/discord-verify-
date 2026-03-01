@@ -14,11 +14,11 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # ---------- CONFIG ----------
 PROOF_CHANNEL_ID = 1467104586329362677
 LOG_CHANNEL_ID = 1458565222926123109
-ROLE_ID = 1458568198214516991  # <-- HIER DEINE ROLLEN-ID
+ROLE_ID = 1458568198214516991
 REQUIRED = 7
 ROLE_DURATION_HOURS = 24
 
-# UserID -> Anzahl Screenshots
+# UserID -> Screenshot Counter
 user_counter = {}
 
 # ---------- READY ----------
@@ -37,66 +37,82 @@ async def remove_role_later(guild, user_id):
         await member.remove_roles(role)
         print(f"⏱️ Rolle entfernt von {member}")
 
-# ---------- MESSAGE ----------
+# ---------- MESSAGE EVENT ----------
 @bot.event
 async def on_message(message):
+
     if message.author.bot:
         return
 
-    # Nur Proof-Channel
-    if message.channel.id != PROOF_CHANNEL_ID:
-        return
+    # Nur im Proof Channel arbeiten
+    if message.channel.id == PROOF_CHANNEL_ID:
 
-    # Nur Nachrichten mit Anhängen
-    if not message.attachments:
-        return
+        log_channel = bot.get_channel(LOG_CHANNEL_ID)
 
-    # Nur Bilder zählen
-    images = [
-        a for a in message.attachments
-        if a.content_type and a.content_type.startswith("image/")
-    ]
+        # ❌ Wenn keine Anhänge -> löschen + loggen
+        if not message.attachments:
+            await message.delete()
 
-    if not images:
-        return
+            if log_channel:
+                await log_channel.send(
+                    f"🗑️ Deleted text message from {message.author.mention}"
+                )
+            return
 
-    user_id = message.author.id
-    user_counter[user_id] = user_counter.get(user_id, 0) + len(images)
-    count = user_counter[user_id]
+        # Nur Bilder erlauben
+        images = [
+            a for a in message.attachments
+            if a.content_type and a.content_type.startswith("image/")
+        ]
 
-    log_channel = bot.get_channel(LOG_CHANNEL_ID)
-    if not log_channel:
-        return
+        # ❌ Wenn Anhänge aber keine Bilder -> löschen
+        if not images:
+            await message.delete()
 
-    # ❌ Nicht genug Screenshots
-    if count < REQUIRED:
-        await log_channel.send(
-            f"❌ {message.author.mention} was denied – not enough screenshots ({count}/{REQUIRED})"
-        )
-        return
+            if log_channel:
+                await log_channel.send(
+                    f"🗑️ Deleted non-image file from {message.author.mention}"
+                )
+            return
 
-    # ✅ APPROVED
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    await log_channel.send(
-        f"✅ {message.author.mention} was approved at {now}. Role valid for 24h 😈"
-    )
+        # -----------------------------
+        # Ab hier sind nur Bilder erlaubt
+        # -----------------------------
 
-    # Rolle vergeben
-    member = message.guild.get_member(user_id)
-    role = message.guild.get_role(ROLE_ID)
+        user_id = message.author.id
+        user_counter[user_id] = user_counter.get(user_id, 0) + len(images)
+        count = user_counter[user_id]
 
-    if member and role:
-        await member.add_roles(role)
-        print(f"✅ Rolle vergeben an {member}")
+        # ❌ Noch nicht genug Screenshots
+        if count < REQUIRED:
+            if log_channel:
+                await log_channel.send(
+                    f"❌ {message.author.mention} – {count}/{REQUIRED} screenshots received."
+                )
+            return
 
-        # 24h Timer starten
-        bot.loop.create_task(remove_role_later(message.guild, user_id))
+        # ✅ Approved
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Counter zurücksetzen
-    user_counter.pop(user_id, None)
+        if log_channel:
+            await log_channel.send(
+                f"✅ {message.author.mention} approved at {now}. Role valid for 24h 😈"
+            )
+
+        member = message.guild.get_member(user_id)
+        role = message.guild.get_role(ROLE_ID)
+
+        if member and role:
+            await member.add_roles(role)
+            print(f"✅ Rolle vergeben an {member}")
+
+            # 24h Timer starten
+            bot.loop.create_task(remove_role_later(message.guild, user_id))
+
+        # Counter zurücksetzen
+        user_counter.pop(user_id, None)
 
     await bot.process_commands(message)
 
 # ---------- START ----------
 bot.run(os.environ["DISCORD_TOKEN"])
-
